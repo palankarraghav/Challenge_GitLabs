@@ -1,0 +1,76 @@
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+stages:
+  - install
+  - lint          
+  - test
+  - build
+  - deploy
+
+before_script:
+  - cd my-app
+
+cache:
+  paths:
+    - my-app/node_modules/
+
+install-job:
+  stage: install
+  image: node:16
+  script:
+   - echo "Installing dependencies..."
+   - npm install
+
+lint-job:     
+  stage: lint
+  image: node:16
+  script:
+   - echo "Running Linter.."
+   - npm run lint
+  artifacts:
+    paths:
+      - my-app/eslint-report.xml
+  allow_failure: false
+
+#Build will fail on test fail
+test-job:     
+  stage: test
+  image: node:16
+  script:
+    - echo "Running unit tests..."
+    - npm run test --ci --output-file=test_results.xml
+  artifacts:
+    paths:
+      - my-app/test_results.xml
+  allow_failure: false
+
+build-job:   
+  stage: build
+  image: node:16  
+  script:
+    - echo "Project build in progress"
+    - npm run build
+  artifacts:
+    paths:
+      - my-app/build/
+
+#Authenticated to deployment destination using secret token
+#triggered only on master branch
+deploy-job:
+  stage: deploy 
+  image: node:16
+  environment:
+    name: production
+    url: https://cicdchallenge.netlify.app
+  only:
+    - main
+  script:
+    - echo "Deploying application..."
+    - npm install netlify-cli -g
+    - netlify deploy --dir=build --prod --auth=$NETLIFY_AUTH_TOKEN
+  variables:
+    NETLIFY_AUTH_TOKEN: $NETLIFY_AUTH_TOKEN
